@@ -47,3 +47,4 @@ torch==2.9.0
 triton==3.5.0
 typing-inspection==0.4.2
 typing_extensions==4.15.0
+scikit-learn==1.7.2

@@ -14,6 +14,8 @@ from torch.utils.data import random_split
 import torch.nn as nn
 import torch.optim
 
+from sklearn.metrics import jaccard_score
+
 
 # --------------------------------------------------------------------------------
 # CREATE A FOLDER IF IT DOES NOT EXIST
@@ -63,8 +65,8 @@ class Network_Class:
         # -------------------
         # TRAINING PARAMETERS
         # -------------------
-        self.criterion = ...
-        self.optimizer = ... 
+        self.criterion = nn.CrossEntropyLoss()
+        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr)
 
         # ----------------------------------------------------
         # DATASET INITIALISATION (from the dataLoader.py file)
@@ -87,13 +89,77 @@ class Network_Class:
     # TRAINING LOOP (dummy implementation)
     # -----------------------------------
     def train(self): 
+
+        train_loss_history = []
+        val_loss_history   = []
+
         # train for a given number of epochs
         for i in range(self.epoch):
-            print("Loss at i-th epoch: ", str(np.random.random_sample()))
+
+            self.model.train(True)
+            total_loss = 0.0
+            for (images, masks, _, _) in self.trainDataLoader:
+                images = images.to(self.device)
+                masks  = masks.to(self.device, dtype=torch.long)
+
+                # zero the parameter gradients
+                self.optimizer.zero_grad()
+
+                # forward pass
+                outputs = self.model(images)
+                loss = self.criterion(outputs, masks)
+
+                # backward pass + optimize
+                loss.backward()
+                self.optimizer.step()
+
+                total_loss += loss.item()
+
+            total_loss_epoch = total_loss / len(self.trainDataLoader)
+            train_loss_history.append(total_loss_epoch)
+            print("Loss at i-th epoch: ", str(total_loss_epoch))
+
+            # Validation 
+
+            self.model.eval()
+
+            with torch.no_grad():
+                total_val_loss = 0.0
+                for (images, masks, _, _) in self.valDataLoader:
+                    images = images.to(self.device)
+                    masks  = masks.to(self.device, dtype=torch.long)
+
+                    outputs = self.model(images)
+                    loss = self.criterion(outputs, masks)
+
+                    total_val_loss += loss.item()
+
+                total_val_loss_epoch = total_val_loss / len(self.valDataLoader)
+                val_loss_history.append(total_val_loss_epoch)
+                print("Validation Loss at i-th epoch: ", str(total_val_loss_epoch))
+
             modelWts = copy.deepcopy(self.model.state_dict())
 
+
         # Print learning curves
-        # Implement this...
+
+        """
+        # --- Plot and Save Loss Curves ---
+        plt.figure(figsize=(10, 6))
+        plt.plot(range(1, self.epoch + 1), train_loss_history, label='Train Loss')
+        plt.plot(range(1, self.epoch + 1), val_loss_history, label='Validation Loss')
+        plt.title('Training and Validation Loss Curves')
+        plt.xlabel('Epoch')
+        plt.ylabel('Loss')
+        plt.legend()
+        plt.grid(True)
+        plot_path = os.path.join(self.resultsPath, 'loss_curves.png')
+        plt.savefig(plot_path)
+        plt.close()
+        print(f"Loss curves graph saved to {plot_path}")
+        """
+
+
 
         # Save the model weights
         wghtsPath  = self.resultsPath + '/_Weights/'
@@ -135,3 +201,13 @@ class Network_Class:
         # Quantitative Evaluation
         # Implement this ! 
 
+        allMasks_flat      = allMasks.flatten()
+        allMasksPreds_flat = allMasksPreds.flatten()
+
+        # Compute metrics
+        labels = list(range(5))
+        mean_iou = jaccard_score(allMasks_flat, allMasksPreds_flat, average='macro', labels=labels)
+
+        class_iou = jaccard_score(allMasks_flat, allMasksPreds_flat, average=None, labels=labels)
+        print(f'Mean IoU: {mean_iou}')
+        print(f'Class IoU: {class_iou}')
