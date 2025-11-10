@@ -39,27 +39,13 @@ def main(parser):
     # Path to the folder that will contain results of the experiment 
     resultsPath = os.path.join(rootDirectory, "Results", parser.exp)
 
-    # ------------------------
-    # 1. NETWORK INSTANTIATION 
-    # ------------------------
     myNetwork  = Network_Class(param, imgDirectory, maskDirectory, resultsPath)
-
-    # ------------------------------------------ 
-    # 2. VISUALISATION OF THE DATASET (OPTIONAL)
-    # ------------------------------------------
-    # Comment line below to skip the visualisation
     showDataset(myNetwork.dataSetTrain, param)
 
-    # ------------------
-    # 3. TRAIN THE MODEL  
-    # ------------------
     print(colored('Start to train the network', 'red'))
-    myNetwork.train()
+    #myNetwork.train()
     print(colored('The network is trained', 'red'))
     
-    # ---------------------
-    # 4. EVALUATE THE MODEL  
-    # ---------------------  
     myNetwork.loadWeights()
     myNetwork.evaluate()
     

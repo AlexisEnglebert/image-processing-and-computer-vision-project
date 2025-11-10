@@ -6,6 +6,7 @@ import numpy as np
 np.random.seed(2885)
 import os
 import copy
+import tqdm
 
 import torch
 torch.manual_seed(2885)
@@ -14,7 +15,7 @@ from torch.utils.data import random_split
 import torch.nn as nn
 import torch.optim
 
-from sklearn.metrics import jaccard_score
+from sklearn.metrics import jaccard_score, f1_score, confusion_matrix, ConfusionMatrixDisplay
 
 
 # --------------------------------------------------------------------------------
@@ -98,7 +99,7 @@ class Network_Class:
 
             self.model.train(True)
             total_loss = 0.0
-            for (images, masks, _, _) in self.trainDataLoader:
+            for (images, masks, _, _) in tqdm.tqdm(self.trainDataLoader):
                 images = images.to(self.device)
                 masks  = masks.to(self.device, dtype=torch.long)
 
@@ -117,7 +118,7 @@ class Network_Class:
 
             total_loss_epoch = total_loss / len(self.trainDataLoader)
             train_loss_history.append(total_loss_epoch)
-            print("Loss at i-th epoch: ", str(total_loss_epoch))
+            print(f"Loss at epoch {i}: {str(total_loss_epoch)}")
 
             # Validation 
 
@@ -141,10 +142,6 @@ class Network_Class:
             modelWts = copy.deepcopy(self.model.state_dict())
 
 
-        # Print learning curves
-
-        """
-        # --- Plot and Save Loss Curves ---
         plt.figure(figsize=(10, 6))
         plt.plot(range(1, self.epoch + 1), train_loss_history, label='Train Loss')
         plt.plot(range(1, self.epoch + 1), val_loss_history, label='Validation Loss')
@@ -153,11 +150,10 @@ class Network_Class:
         plt.ylabel('Loss')
         plt.legend()
         plt.grid(True)
-        plot_path = os.path.join(self.resultsPath, 'loss_curves.png')
+        plot_path = os.path.join(self.resultsPath, 'loss_curves.pdf')
         plt.savefig(plot_path)
         plt.close()
         print(f"Loss curves graph saved to {plot_path}")
-        """
 
 
 
@@ -199,15 +195,31 @@ class Network_Class:
         reconstruct_from_tiles(allResizedImgs, allMasksPreds, allMasks, allTileNames, savePath)
     
         # Quantitative Evaluation
-        # Implement this ! 
-
         allMasks_flat      = allMasks.flatten()
         allMasksPreds_flat = allMasksPreds.flatten()
 
         # Compute metrics
         labels = list(range(5))
         mean_iou = jaccard_score(allMasks_flat, allMasksPreds_flat, average='macro', labels=labels)
-
         class_iou = jaccard_score(allMasks_flat, allMasksPreds_flat, average=None, labels=labels)
+
+        # Calcule du F1-score pour chaque classe
+        class_f1 = f1_score(allMasks_flat, allMasksPreds_flat, average=None, labels=labels)
+        mean_f1 = float(np.mean(class_f1))
+
+        # Matrice de confusion
+        cm = confusion_matrix(allMasks_flat, allMasksPreds_flat, labels=labels)
+        row_sums = cm.sum(axis=1, keepdims=True)
+        cm_norm = np.divide(cm, row_sums, out=np.zeros_like(cm, dtype=np.float32), where=row_sums != 0)
+
+
         print(f'Mean IoU: {mean_iou}')
         print(f'Class IoU: {class_iou}')
+        print("------------------------")
+        print(f'Mean class F1: {mean_f1}')
+        print(f'Class IoU: {class_f1}')
+        print("------------------------")
+
+        graph = ConfusionMatrixDisplay(confusion_matrix=cm_norm, display_labels=labels)
+        graph.plot(cmap=plt.cm.Blues)
+        plt.show()
