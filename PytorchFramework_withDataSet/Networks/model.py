@@ -62,7 +62,7 @@ class Network_Class:
         # -----------------------------------
         # NETWORK ARCHITECTURE INITIALISATION
         # -----------------------------------
-        self.model = Net(param).to(self.device)
+        self.model = EncoderDecoderNet(param).to(self.device)
         # -------------------
         # TRAINING PARAMETERS
         # -------------------
