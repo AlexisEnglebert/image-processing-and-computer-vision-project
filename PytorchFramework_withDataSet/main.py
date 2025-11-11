@@ -43,7 +43,7 @@ def main(parser):
     showDataset(myNetwork.dataSetTrain, param)
 
     print(colored('Start to train the network', 'red'))
-    #myNetwork.train()
+    myNetwork.train()
     print(colored('The network is trained', 'red'))
     
     myNetwork.loadWeights()

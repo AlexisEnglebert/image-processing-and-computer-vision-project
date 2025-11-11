@@ -1,6 +1,7 @@
 from Dataset.dataLoader import *
 from Dataset.makeGraph import *
 from Networks.Architectures.basicNetwork import *
+from Networks.Architectures.EncoderDecoderNetwork import *
 
 import numpy as np
 np.random.seed(2885)
@@ -62,7 +63,6 @@ class Network_Class:
         # NETWORK ARCHITECTURE INITIALISATION
         # -----------------------------------
         self.model = Net(param).to(self.device)
-
         # -------------------
         # TRAINING PARAMETERS
         # -------------------
@@ -223,3 +223,4 @@ class Network_Class:
         graph = ConfusionMatrixDisplay(confusion_matrix=cm_norm, display_labels=labels)
         graph.plot(cmap=plt.cm.Blues)
         plt.show()
+    
