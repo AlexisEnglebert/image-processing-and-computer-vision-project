@@ -66,8 +66,12 @@ class Network_Class:
         # -------------------
         # TRAINING PARAMETERS
         # -------------------
-        self.criterion = nn.CrossEntropyLoss()
+
+        # On doit changer les weigths car après entrainement il y en a bpc qui sont classé comme 0
+        # Il faut donc pénaliser un peu plus le 0, vu qu'il correspond à la classe "unmapped area"
+        self.criterion = nn.CrossEntropyLoss(weigth=[1.0, 3.0, 3.5, 1.5, 2.0])
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr, weight_decay=self.weight_decay)
+        self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, "min")
         self.best_val_loss = float("inf")
 
         # ----------------------------------------------------
@@ -114,7 +118,6 @@ class Network_Class:
                 # backward pass + optimize
                 loss.backward()
                 self.optimizer.step()
-
                 total_loss += loss.item()
 
             total_loss_epoch = total_loss / len(self.trainDataLoader)
@@ -226,5 +229,7 @@ class Network_Class:
         print(f"Best val Loss is: {self.best_val_loss}")
         graph = ConfusionMatrixDisplay(confusion_matrix=cm_norm, display_labels=labels)
         graph.plot(cmap=plt.cm.Blues)
+        plot_path = os.path.join(self.resultsPath, 'confusion_matrix.pdf')
+        plt.savefig(plot_path)
         plt.show()
     
