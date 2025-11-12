@@ -69,6 +69,7 @@ class Network_Class:
         self.criterion = nn.CrossEntropyLoss()
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr, weight_decay=self.weight_decay)
         self.best_val_loss = float("inf")
+
         # ----------------------------------------------------
         # DATASET INITIALISATION (from the dataLoader.py file)
         # ----------------------------------------------------
@@ -161,7 +162,6 @@ class Network_Class:
         print(f"Loss curves graph saved to {plot_path}")
 
 
-
         # Save the model weights
         
         torch.save(self.best_weights, wghtsPath + '/wghts.pkl')
@@ -221,9 +221,9 @@ class Network_Class:
         print(f'Class IoU: {class_iou}')
         print("------------------------")
         print(f'Mean class F1: {mean_f1}')
-        print(f'Class IoU: {class_f1}')
+        print(f'Class F1: {class_f1}')
         print("------------------------")
-
+        print(f"Best val Loss is: {self.best_val_loss}")
         graph = ConfusionMatrixDisplay(confusion_matrix=cm_norm, display_labels=labels)
         graph.plot(cmap=plt.cm.Blues)
         plt.show()

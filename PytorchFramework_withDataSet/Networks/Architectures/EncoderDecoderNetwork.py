@@ -9,6 +9,7 @@ class EncoderDecoderNet(nn.Module):
     def __init__(self, param):
         super().__init__()
         self.nb_channel = param["MODEL"]["NB_CHANNEL"]
+        self.dropout = nn.Dropout2d(p = 0.2)
 
         self.encoder1 = nn.Sequential(
             nn.Conv2d(3, self.nb_channel, padding="same", kernel_size=3),
@@ -17,6 +18,7 @@ class EncoderDecoderNet(nn.Module):
             nn.Conv2d(self.nb_channel, self.nb_channel, padding="same", kernel_size=3),
             nn.BatchNorm2d(self.nb_channel),
             nn.ReLU(inplace=True),
+            self.dropout,
         )
         self.pool = nn.MaxPool2d(2,2)
         self.encoder2 = nn.Sequential(
@@ -26,6 +28,7 @@ class EncoderDecoderNet(nn.Module):
             nn.Conv2d(self.nb_channel*2, self.nb_channel*2, padding="same", kernel_size=3),
             nn.BatchNorm2d(self.nb_channel*2),
             nn.ReLU(inplace=True),
+            self.dropout,
         )
 
         self.encoder3 = nn.Sequential(
@@ -35,6 +38,7 @@ class EncoderDecoderNet(nn.Module):
             nn.Conv2d(self.nb_channel*4, self.nb_channel*4, padding="same", kernel_size=3),
             nn.BatchNorm2d(self.nb_channel*4),
             nn.ReLU(inplace=True),
+            self.dropout,
         )
 
         self.bottleneck = nn.Sequential(
@@ -75,7 +79,8 @@ class EncoderDecoderNet(nn.Module):
             nn.BatchNorm2d(self.nb_channel),
             nn.ReLU(inplace=True),
         )
-
+        # permet d'éviter l'overfitting :
+        # https://docs.pytorch.org/docs/stable/generated/torch.nn.Dropout2d.html
         self.final_block =  nn.Conv2d(self.nb_channel, 5, padding="same", kernel_size=1)
         
     def forward(self, x):
