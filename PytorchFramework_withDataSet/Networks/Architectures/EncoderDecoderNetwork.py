@@ -11,37 +11,37 @@ class EncoderDecoderNet(nn.Module):
         self.nb_channel = param["MODEL"]["NB_CHANNEL"]
 
         self.encoder1 = nn.Sequential(
-            nn.Conv2d(3, self.nb_channel, padding='same', kernel_size=3),
+            nn.Conv2d(3, self.nb_channel, padding="same", kernel_size=3),
             nn.BatchNorm2d(self.nb_channel),
             nn.ReLU(inplace=True),
-            nn.Conv2d(self.nb_channel, self.nb_channel, padding='same', kernel_size=3),
+            nn.Conv2d(self.nb_channel, self.nb_channel, padding="same", kernel_size=3),
             nn.BatchNorm2d(self.nb_channel),
             nn.ReLU(inplace=True),
         )
-        self.pool = nn.MaxPool2d(2)
+        self.pool = nn.MaxPool2d(2,2)
         self.encoder2 = nn.Sequential(
-            nn.Conv2d(self.nb_channel, self.nb_channel*2, padding='same', kernel_size=3),
+            nn.Conv2d(self.nb_channel, self.nb_channel*2, padding="same", kernel_size=3),
             nn.BatchNorm2d(self.nb_channel*2),
             nn.ReLU(inplace=True),
-            nn.Conv2d(self.nb_channel*2, self.nb_channel*2, padding='same', kernel_size=3),
+            nn.Conv2d(self.nb_channel*2, self.nb_channel*2, padding="same", kernel_size=3),
             nn.BatchNorm2d(self.nb_channel*2),
             nn.ReLU(inplace=True),
         )
 
         self.encoder3 = nn.Sequential(
-            nn.Conv2d(self.nb_channel*2, self.nb_channel*4, padding='same', kernel_size=3),
+            nn.Conv2d(self.nb_channel*2, self.nb_channel*4, padding="same", kernel_size=3),
             nn.BatchNorm2d(self.nb_channel*4),
             nn.ReLU(inplace=True),
-            nn.Conv2d(self.nb_channel*4, self.nb_channel*4, padding='same', kernel_size=3),
+            nn.Conv2d(self.nb_channel*4, self.nb_channel*4, padding="same", kernel_size=3),
             nn.BatchNorm2d(self.nb_channel*4),
             nn.ReLU(inplace=True),
         )
 
         self.bottleneck = nn.Sequential(
-            nn.Conv2d(self.nb_channel*4, self.nb_channel*8, padding='same', kernel_size=3),
+            nn.Conv2d(self.nb_channel*4, self.nb_channel*8, padding="same", kernel_size=3),
             nn.BatchNorm2d(self.nb_channel*8),
             nn.ReLU(inplace=True),
-            nn.Conv2d(self.nb_channel*8, self.nb_channel*8, padding='same', kernel_size=3),
+            nn.Conv2d(self.nb_channel*8, self.nb_channel*8, padding="same", kernel_size=3),
             nn.BatchNorm2d(self.nb_channel*8),
             nn.ReLU(inplace=True),
         )
@@ -76,7 +76,7 @@ class EncoderDecoderNet(nn.Module):
             nn.ReLU(inplace=True),
         )
 
-        self.final_block =  nn.Conv2d(self.nb_channel, 5, padding='same', kernel_size=1)
+        self.final_block =  nn.Conv2d(self.nb_channel, 5, padding="same", kernel_size=1)
         
     def forward(self, x):
 
@@ -94,6 +94,7 @@ class EncoderDecoderNet(nn.Module):
 
         # On est dans le bottleneck (bas du U)
         x = self.bottleneck(x)
+
         # On monte dans le U (decoder)
         x = self.up_sample1(x)
         x = torch.cat([x, skip_connections[-1]], dim=1)
