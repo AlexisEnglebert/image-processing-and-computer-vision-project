@@ -161,7 +161,7 @@ class Network_Class:
         plt.ylabel('Loss')
         plt.legend()
         plt.grid(True)
-        plot_path = os.path.join(self.resultsPath, 'loss_curves.pdf')
+        plot_path = os.path.join(self.resultsPath, 'loss_curves.png')
         plt.savefig(plot_path)
         plt.close()
         print(f"Loss curves graph saved to {plot_path}")
@@ -231,7 +231,7 @@ class Network_Class:
         print(f"Best val Loss is: {self.best_val_loss}")
         graph = ConfusionMatrixDisplay(confusion_matrix=cm_norm, display_labels=labels)
         graph.plot(cmap=plt.cm.Blues)
-        plot_path = os.path.join(self.resultsPath, 'confusion_matrix.pdf')
+        plot_path = os.path.join(self.resultsPath, 'confusion_matrix.png')
         plt.savefig(plot_path)
         plt.show()
     
