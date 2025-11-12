@@ -75,9 +75,9 @@ class Network_Class:
         self.dataSetTrain    = LLNDataset(imgDirectory, maskDirectory, "train", param)
         self.dataSetVal      = LLNDataset(imgDirectory, maskDirectory, "val",   param)
         self.dataSetTest     = LLNDataset(imgDirectory, maskDirectory, "test",  param)
-        self.trainDataLoader = DataLoader(self.dataSetTrain, batch_size=self.batchSize, shuffle=True,  num_workers=4)
-        self.valDataLoader   = DataLoader(self.dataSetVal,   batch_size=self.batchSize, shuffle=False, num_workers=4)
-        self.testDataLoader  = DataLoader(self.dataSetTest,  batch_size=self.batchSize, shuffle=False, num_workers=4)
+        self.trainDataLoader = DataLoader(self.dataSetTrain, batch_size=self.batchSize, shuffle=True,  num_workers=2)
+        self.valDataLoader   = DataLoader(self.dataSetVal,   batch_size=self.batchSize, shuffle=False, num_workers=2)
+        self.testDataLoader  = DataLoader(self.dataSetTest,  batch_size=self.batchSize, shuffle=False, num_workers=2)
 
 
     # ---------------------------------------------------------------------------
