@@ -58,7 +58,7 @@ class Network_Class:
         self.device        = param["TRAINING"]["DEVICE"]
         self.lr            = param["TRAINING"]["LEARNING_RATE"]
         self.batchSize     = param["TRAINING"]["BATCH_SIZE"]
-
+        self.weight_decay  = param["TRAINING"]["WEIGHT_DECAY"]
         # -----------------------------------
         # NETWORK ARCHITECTURE INITIALISATION
         # -----------------------------------
@@ -67,7 +67,7 @@ class Network_Class:
         # TRAINING PARAMETERS
         # -------------------
         self.criterion = nn.CrossEntropyLoss()
-        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr)
+        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr, weight_decay=self.weight_decay)
 
         # ----------------------------------------------------
         # DATASET INITIALISATION (from the dataLoader.py file)

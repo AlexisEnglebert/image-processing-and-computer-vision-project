@@ -13,6 +13,7 @@ TRAINING:
   LEARNING_RATE: 0.001
   EPOCH: 20
   BATCH_SIZE: 16
+  WEIGHT_DECAY: 0.0001  # Pour éviter l'overfitting
   # cpu (to run on cpu) or cuda (to run on gpu)
   DEVICE: cpu 
   # Do not hesitate to add other parameters...
