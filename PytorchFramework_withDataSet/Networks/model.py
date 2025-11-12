@@ -69,7 +69,7 @@ class Network_Class:
 
         # On doit changer les weigths car après entrainement il y en a bpc qui sont classé comme 0
         # Il faut donc pénaliser un peu plus le 0, vu qu'il correspond à la classe "unmapped area"
-        self.criterion = nn.CrossEntropyLoss(weigth=[1.0, 3.0, 3.5, 1.5, 2.0])
+        self.criterion = nn.CrossEntropyLoss(weight=[1.0, 3.0, 3.5, 1.5, 2.0])
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr, weight_decay=self.weight_decay)
         self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, "min")
         self.best_val_loss = float("inf")
