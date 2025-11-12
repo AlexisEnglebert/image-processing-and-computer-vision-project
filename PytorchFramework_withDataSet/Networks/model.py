@@ -68,7 +68,7 @@ class Network_Class:
         # -------------------
         self.criterion = nn.CrossEntropyLoss()
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr, weight_decay=self.weight_decay)
-
+        self.best_val_loss = float("inf")
         # ----------------------------------------------------
         # DATASET INITIALISATION (from the dataLoader.py file)
         # ----------------------------------------------------
@@ -137,11 +137,16 @@ class Network_Class:
 
                 total_val_loss_epoch = total_val_loss / len(self.valDataLoader)
                 val_loss_history.append(total_val_loss_epoch)
-                print("Validation Loss at i-th epoch: ", str(total_val_loss_epoch))
+                print(f"Validation Loss: ", str(total_val_loss_epoch))
 
-            modelWts = copy.deepcopy(self.model.state_dict())
+                if total_val_loss < self.best_val_loss:
+                    self.best_weights = copy.deepcopy(self.model.state_dict())
+                    self.best_val_loss = total_val_loss
 
 
+        wghtsPath  = self.resultsPath + '/_Weights/'
+        createFolder(wghtsPath)
+        
         plt.figure(figsize=(10, 6))
         plt.plot(range(1, self.epoch + 1), train_loss_history, label='Train Loss')
         plt.plot(range(1, self.epoch + 1), val_loss_history, label='Validation Loss')
@@ -158,9 +163,8 @@ class Network_Class:
 
 
         # Save the model weights
-        wghtsPath  = self.resultsPath + '/_Weights/'
-        createFolder(wghtsPath)
-        torch.save(modelWts, wghtsPath + '/wghts.pkl')
+        
+        torch.save(self.best_weights, wghtsPath + '/wghts.pkl')
 
 
 
