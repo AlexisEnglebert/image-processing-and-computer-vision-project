@@ -50,6 +50,10 @@ class EncoderDecoderNet(nn.Module):
             nn.ReLU(inplace=True),
         )
 
+
+        #
+        # https://discuss.pytorch.org/t/upsample-conv2d-vs-convtranspose2d/138081
+
         self.up_sample1 = nn.ConvTranspose2d(self.nb_channel*8, self.nb_channel*4, kernel_size=2, stride=2)
         self.up_sample2 = nn.ConvTranspose2d(self.nb_channel*4, self.nb_channel*2, kernel_size=2, stride=2)
         self.up_sample3 = nn.ConvTranspose2d(self.nb_channel*2, self.nb_channel, kernel_size=2, stride=2)
