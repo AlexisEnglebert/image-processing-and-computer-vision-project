@@ -77,7 +77,7 @@ class Network_Class:
         else:
             class_weights = None
 
-        self.criterion = nn.CrossEntropyLoss(weight=weights_cfg)
+        self.criterion = nn.CrossEntropyLoss(weight=class_weights)
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr, weight_decay=self.weight_decay)
         self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, "min")
         self.best_val_loss = float("inf")
@@ -92,18 +92,6 @@ class Network_Class:
         self.trainDataLoader = DataLoader(self.dataSetTrain, batch_size=self.batchSize, shuffle=True,  num_workers=2)
         self.valDataLoader   = DataLoader(self.dataSetVal,   batch_size=self.batchSize, shuffle=False, num_workers=2)
         self.testDataLoader  = DataLoader(self.dataSetTest,  batch_size=self.batchSize, shuffle=False, num_workers=2)
-
-        counts = torch.zeros(5, dtype=torch.float64)
-
-        for _, mask, _, _ in self.trainDataLoader:
-            mask = mask.squeeze(0).long()
-            for c in range(5):
-                counts[c] += (mask == c).sum()
-
-        freqs = counts / counts.sum().clamp_min(1)
-        median_freq = freqs[freqs > 0].median()
-        weights = median_freq / freqs.clamp(min=1e-6)  
-        print(weights)
     # ---------------------------------------------------------------------------
     # LOAD PRETRAINED WEIGHTS (to run evaluation without retraining the model...)
     # ---------------------------------------------------------------------------
