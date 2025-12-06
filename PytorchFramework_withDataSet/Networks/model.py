@@ -2,6 +2,9 @@ from Dataset.dataLoader import *
 from Dataset.makeGraph import *
 from Networks.Architectures.basicNetwork import *
 from Networks.Architectures.EncoderDecoderNetwork import *
+from Networks.Architectures.attentionunet import *
+from Networks.Architectures.UNet import *
+from Networks.Architectures.testNet import *
 
 import numpy as np
 np.random.seed(2885)
@@ -17,6 +20,36 @@ import torch.nn as nn
 import torch.optim
 
 from sklearn.metrics import jaccard_score, f1_score, confusion_matrix, ConfusionMatrixDisplay
+
+
+class DiceLoss(nn.Module):
+    def __init__(self, smooth=1e-6):
+        super(DiceLoss, self).__init__()
+        self.smooth = smooth
+    
+    def forward(self, pred, target):
+        pred = F.softmax(pred, dim=1)
+        target_one_hot = F.one_hot(target, num_classes=pred.shape[1]).permute(0, 3, 1, 2).float()
+        
+        intersection = (pred * target_one_hot).sum(dim=(2, 3))
+        union = pred.sum(dim=(2, 3)) + target_one_hot.sum(dim=(2, 3))
+        
+        dice = (2. * intersection + self.smooth) / (union + self.smooth)
+        return 1 - dice.mean()
+
+
+class CombinedLoss(nn.Module):
+    def __init__(self, weight=None, ce_weight=0.5, dice_weight=0.5):
+        super(CombinedLoss, self).__init__()
+        self.ce_loss = nn.CrossEntropyLoss(weight=weight)
+        self.dice_loss = DiceLoss()
+        self.ce_weight = ce_weight
+        self.dice_weight = dice_weight
+    
+    def forward(self, pred, target):
+        ce = self.ce_loss(pred, target)
+        dice = self.dice_loss(pred, target)
+        return self.ce_weight * ce + self.dice_weight * dice
 
 
 # --------------------------------------------------------------------------------
@@ -59,29 +92,29 @@ class Network_Class:
         self.lr            = param["TRAINING"]["LEARNING_RATE"]
         self.batchSize     = param["TRAINING"]["BATCH_SIZE"]
         self.weight_decay  = param["TRAINING"]["WEIGHT_DECAY"]
+        self.patience      = param["TRAINING"].get("PATIENCE", 10)
+        self.grad_clip     = param["TRAINING"].get("GRAD_CLIP", 1.0)
         # -----------------------------------
         # NETWORK ARCHITECTURE INITIALISATION
         # -----------------------------------
-        self.model = EncoderDecoderNet(param).to(self.device)
+        self.model = attention_UNet(param).to(self.device)
         # -------------------
         # TRAINING PARAMETERS
         # -------------------
 
         # On doit changer les weigths car après entrainement il y en a bpc qui sont classé comme 0
         # Il faut donc pénaliser un peu plus le 0, vu qu'il correspond à la classe "unmapped area"
-        class_weights = torch.tensor([0.8, 4.3, 3.5, 2.0, 2.6], device=self.device)
-
         weights_cfg = param["TRAINING"].get("CLASS_WEIGHTS")
         if weights_cfg is not None:
             class_weights = torch.tensor(weights_cfg, device=self.device)
         else:
-            class_weights = None
+            class_weights = torch.tensor([1.5, 4.3, 3.5, 2.0, 2.6], device=self.device)
 
-        self.criterion = nn.CrossEntropyLoss(weight=class_weights)
-        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr, weight_decay=self.weight_decay)
-        self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, "min")
+        self.criterion = CombinedLoss(weight=class_weights, ce_weight=0.5, dice_weight=0.5)
+        self.optimizer = torch.optim.AdamW(self.model.parameters(), lr=self.lr, weight_decay=self.weight_decay)
+        self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, "min", patience=5, factor=0.5)
         self.best_val_loss = float("inf")
-
+        self.epochs_no_improve = 0
 
         # ----------------------------------------------------
         # DATASET INITIALISATION (from the dataLoader.py file)
@@ -105,9 +138,17 @@ class Network_Class:
 
         train_loss_history = []
         val_loss_history   = []
+        warmup_epochs = 5
+        base_lr = self.lr
 
         # train for a given number of epochs
         for i in range(self.epoch):
+            
+            # Learning rate warmup
+            if i < warmup_epochs:
+                lr = base_lr * (i + 1) / warmup_epochs
+                for param_group in self.optimizer.param_groups:
+                    param_group['lr'] = lr
 
             self.model.train(True)
             total_loss = 0.0
@@ -124,6 +165,10 @@ class Network_Class:
 
                 # backward pass + optimize
                 loss.backward()
+                
+                # Gradient clipping
+                torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.grad_clip)
+                
                 self.optimizer.step()
                 total_loss += loss.item()
 
@@ -159,8 +204,8 @@ class Network_Class:
         createFolder(wghtsPath)
         
         plt.figure(figsize=(10, 6))
-        plt.plot(range(1, self.epoch + 1), train_loss_history, label='Train Loss')
-        plt.plot(range(1, self.epoch + 1), val_loss_history, label='Validation Loss')
+        plt.plot(range(1, len(train_loss_history) + 1), train_loss_history, label='Train Loss')
+        plt.plot(range(1, len(val_loss_history) + 1), val_loss_history, label='Validation Loss')
         plt.title('Training and Validation Loss Curves')
         plt.xlabel('Epoch')
         plt.ylabel('Loss')
@@ -174,7 +219,7 @@ class Network_Class:
 
         # Save the model weights
         
-        torch.save(self.best_weights, wghtsPath + '/wghts.pkl')
+        torch.save(self.best_weights, wghtsPath + '/wghts.pkl') 
 
 
 
@@ -186,19 +231,20 @@ class Network_Class:
         self.model.eval()
          
         allMasks, allMasksPreds, allTileNames, allResizedImgs = [], [], [], []
-        for (images, masks, tileNames, resizedImgs) in self.testDataLoader:
-            images      = images.to(self.device)
-            outputs     = self.model(images)
+        with torch.no_grad():
+            for (images, masks, tileNames, resizedImgs) in self.testDataLoader:
+                images      = images.to(self.device)
+                outputs     = self.model(images)
 
-            images      = images.to('cpu')
-            outputs     = outputs.to('cpu')
+                images      = images.to('cpu')
+                outputs     = outputs.to('cpu')
 
-            masksPreds   = torch.argmax(outputs, dim=1)
+                masksPreds   = torch.argmax(outputs, dim=1)
 
-            allMasks.extend(masks.data.numpy())
-            allMasksPreds.extend(masksPreds.data.numpy())
-            allResizedImgs.extend(resizedImgs.data.numpy())
-            allTileNames.extend(tileNames)
+                allMasks.extend(masks.data.numpy())
+                allMasksPreds.extend(masksPreds.data.numpy())
+                allResizedImgs.extend(resizedImgs.data.numpy())
+                allTileNames.extend(tileNames)
         
         allMasks       = np.array(allMasks)
         allMasksPreds  = np.array(allMasksPreds)
@@ -239,4 +285,5 @@ class Network_Class:
         plot_path = os.path.join(self.resultsPath, 'confusion_matrix.png')
         plt.savefig(plot_path)
         plt.show()
-    
+
+        return mean_iou
