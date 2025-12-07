@@ -85,6 +85,7 @@ class EncoderDecoderNet(nn.Module):
         )
         # permet d'éviter l'overfitting :
         # https://docs.pytorch.org/docs/stable/generated/torch.nn.Dropout2d.html
+        # Note, for this model only 3 channels are in the final layer representing the value of each pixel
         self.final_block =  nn.Conv2d(self.nb_channel, 3, padding="same", kernel_size=1)
         
     def forward(self, x):

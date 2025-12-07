@@ -1,3 +1,5 @@
+# This file is used to launch the training of the model for the proxy task
+
 from Networks.model_proxy import *
 from Dataset.makeGraph import *
 

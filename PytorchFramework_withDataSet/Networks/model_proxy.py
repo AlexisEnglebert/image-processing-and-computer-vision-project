@@ -26,10 +26,13 @@ def createFolder(desiredPath):
     if not os.path.exists(desiredPath):
         os.makedirs(desiredPath)
 
+# Function that selects the pixels to be masked
+# `x` is the batch of images
 def apply_mask(x, mask_ratio=0.75):
     B, C, H, W = np.shape(x)
     mask = torch.rand(B, 1, H, W, device=x.device) < mask_ratio
     x_masked = x.clone()
+    # set the masked pixels to 0
     x_masked[mask.expand_as(x)] = 0
     return x_masked, mask
 
@@ -72,6 +75,7 @@ class Network_Class:
         # -------------------
         # TRAINING PARAMETERS
         # -------------------
+        # Use MSE loss for critetion
         self.criterion = nn.MSELoss(reduction="mean")
         self.optimizer = torch.optim.AdamW(self.model.parameters(), lr=self.lr, weight_decay=self.weight_decay)
         self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, "min", patience=5, factor=0.5)
@@ -87,10 +91,6 @@ class Network_Class:
         self.trainDataLoader = DataLoader(self.dataSetTrain, batch_size=self.batchSize, shuffle=True,  num_workers=2)
         self.valDataLoader   = DataLoader(self.dataSetVal,   batch_size=self.batchSize, shuffle=False, num_workers=2)
         self.testDataLoader  = DataLoader(self.dataSetTest,  batch_size=self.batchSize, shuffle=False, num_workers=2)
-        for (images, _, _, _) in self.trainDataLoader:
-            B, C, H, W = np.shape(images)
-            print(B, C, H, W)
-            break
     # ---------------------------------------------------------------------------
     # LOAD PRETRAINED WEIGHTS (to run evaluation without retraining the model...)
     # ---------------------------------------------------------------------------
@@ -121,7 +121,7 @@ class Network_Class:
             for (images, _, _, _) in tqdm.tqdm(self.trainDataLoader):
                 images = images.to(self.device)
 
-                # 1. Apply random masking
+                # Apply random masking
                 x_masked, mask = apply_mask(images, mask_ratio=0.70)
 
                 # zero the parameter gradients
@@ -129,6 +129,7 @@ class Network_Class:
 
                 # forward pass
                 outputs = self.model(x_masked)
+                # Compute the loss only on the masked pixels
                 loss = self.criterion(outputs[mask.expand_as(outputs)], images[mask.expand_as(images)])
 
                 # backward pass + optimize
@@ -153,10 +154,11 @@ class Network_Class:
                 for (images, _, _, _) in self.valDataLoader:
                     images = images.to(self.device)
 
-                    # 1. Apply random masking
+                    # Apply random masking
                     x_masked, mask = apply_mask(images, mask_ratio=0.70)
 
                     outputs = self.model(x_masked)
+                    # Compute the loss only on the masked pixels
                     loss = self.criterion(outputs[mask.expand_as(outputs)], images[mask.expand_as(images)])
 
                     total_val_loss += loss.item()
@@ -211,11 +213,11 @@ class Network_Class:
                 # Reconstruct
                 output = self.model(images_masked)
 
-                # Compute masked MSE
+                # Compute the loss only on the masked pixels
                 loss = self.criterion(output[mask.expand_as(output)], images[mask.expand_as(images)])
 
                 total_loss += loss.item() * images.size(0)
                 count += images.size(0)
-        
+        # Print the loss of the model on test data
         print("Loss: " + str(total_loss / count))
         return total_loss / count
