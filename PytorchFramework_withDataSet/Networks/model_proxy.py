@@ -127,7 +127,7 @@ class Network_Class:
         h_prime, w_prime, channels = None, None, None
 
         with torch.no_grad():
-            for (images, _, _, _) in tqdm.tqdm(trainDataLoader, desc="Collecting encoded features"):
+            for (images, _, _, _) in tqdm.tqdm(self.trainDataLoader, desc="Collecting encoded features"):
                 images = images.to(self.device)
                 _, encoded = self.model(images, return_features=True)
                 batch_count, channels, h_prime, w_prime = encoded.shape
@@ -141,7 +141,7 @@ class Network_Class:
   
         return features
 
-    def cluster_training_features(self, num_clusters=10, minibatch_size=4096, random_state=0, save_features=False ):
+    def cluster_training_features(self, num_clusters=10, minibatch_size=64, random_state=0, save_features=False ):
     
         features  = self.collect_encoded_features()
         if features.shape[0] == 0:
