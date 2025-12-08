@@ -28,15 +28,36 @@ def createFolder(desiredPath):
     if not os.path.exists(desiredPath):
         os.makedirs(desiredPath)
 
-# Function that selects the pixels to be masked
-# `x` is the batch of images
-def apply_mask(x, mask_ratio=0.75):
-    B, C, H, W = np.shape(x)
-    mask = torch.rand(B, 1, H, W, device=x.device) < mask_ratio
-    x_masked = x.clone()
-    # set the masked pixels to 0
-    x_masked[mask.expand_as(x)] = 0
-    return x_masked, mask
+# Function that randomly selects the patches to be masked
+def apply_mask(images, mask_ratio=0.7, patch_size=8, replace_with_noise=True):
+    """
+    Block (patch) masking: split images into non-overlapping patches of patch_size and randomly mask patches.
+    images: (B,C,H,W), H and W must be divisible by patch_size
+    returns: images_masked, mask_bool
+    mask_bool is True for masked pixels
+    """
+    B, C, H, W = np.shape(images)
+    # verify the height and width of image are multiples of the patch size
+    assert H % patch_size == 0 and W % patch_size == 0
+    # coordinates of each patch
+    gh, gw = H // patch_size, W // patch_size
+    # create mask for patches
+    patch_mask = torch.rand(B, gh, gw, device=images.device) < mask_ratio
+    # expand to pixel mask
+    patch_mask = patch_mask.unsqueeze(-1).unsqueeze(-1)  # B,gh,gw,1,1
+    patch_mask = patch_mask.expand(-1, -1, -1, patch_size, patch_size)  # B,gh,gw,ps,ps
+    mask_bool = patch_mask.reshape(B, 1, H, W)  # B,1,H,W
+
+    images_masked = images.clone()
+    # Mask using noise
+    if replace_with_noise:
+        noise = torch.randn_like(images) * 0.1 + 0.5
+        images_masked[mask_bool.expand_as(images_masked)] = noise[mask_bool.expand_as(images_masked)]
+    # Mask using 0
+    else:
+        images_masked[mask_bool.expand_as(images_masked)] = 0.0
+
+    return images_masked, mask_bool
 
 ######################################################################################
 #
