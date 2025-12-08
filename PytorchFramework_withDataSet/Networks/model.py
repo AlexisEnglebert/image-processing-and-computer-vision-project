@@ -97,7 +97,7 @@ class Network_Class:
         # -----------------------------------
         # NETWORK ARCHITECTURE INITIALISATION
         # -----------------------------------
-        self.model = attention_UNet(param).to(self.device)
+        self.model = EncoderDecoderNet(param).to(self.device)
         # -------------------
         # TRAINING PARAMETERS
         # -------------------
@@ -106,6 +106,7 @@ class Network_Class:
         # Il faut donc pénaliser un peu plus le 0, vu qu'il correspond à la classe "unmapped area"
         weights_cfg = param["TRAINING"].get("CLASS_WEIGHTS")
         if weights_cfg is not None:
+            print("Using custom class weights:", weights_cfg)
             class_weights = torch.tensor(weights_cfg, device=self.device)
         else:
             class_weights = torch.tensor([1.5, 4.3, 3.5, 2.0, 2.6], device=self.device)
@@ -195,10 +196,17 @@ class Network_Class:
                 val_loss_history.append(total_val_loss_epoch)
                 print(f"Validation Loss: ", str(total_val_loss_epoch))
 
-                if total_val_loss < self.best_val_loss:
+                if total_val_loss_epoch < self.best_val_loss:
                     self.best_weights = copy.deepcopy(self.model.state_dict())
-                    self.best_val_loss = total_val_loss
-
+                    self.best_val_loss = total_val_loss_epoch
+                    self.epochs_no_improve = 0
+                else:
+                    self.epochs_no_improve += 1
+                    print(f"No improvement for {self.epochs_no_improve} epoch(s)")
+                    
+                    if self.epochs_no_improve >= self.patience:
+                        print(f"Early stopping triggered after {i + 1} epochs (no improvement for {self.patience} epochs)")
+                        break
 
         wghtsPath  = self.resultsPath + '/_Weights/'
         createFolder(wghtsPath)
@@ -267,10 +275,15 @@ class Network_Class:
         class_f1 = f1_score(allMasks_flat, allMasksPreds_flat, average=None, labels=labels)
         mean_f1 = float(np.mean(class_f1))
 
-        # Matrice de confusion
+        # Pixel Accuracy
+        pixel_accuracy = np.sum(allMasks_flat == allMasksPreds_flat) / len(allMasks_flat)
+        
+        # Per-Class Accuracy (from confusion matrix diagonal)
         cm = confusion_matrix(allMasks_flat, allMasksPreds_flat, labels=labels)
         row_sums = cm.sum(axis=1, keepdims=True)
         cm_norm = np.divide(cm, row_sums, out=np.zeros_like(cm, dtype=np.float32), where=row_sums != 0)
+        class_accuracy = np.diag(cm_norm)
+        mean_class_accuracy = float(np.mean(class_accuracy))
 
 
         print(f'Mean IoU: {mean_iou}')
@@ -278,6 +291,10 @@ class Network_Class:
         print("------------------------")
         print(f'Mean class F1: {mean_f1}')
         print(f'Class F1: {class_f1}')
+        print("------------------------")
+        print(f'Pixel Accuracy: {pixel_accuracy:.4f}')
+        print(f'Mean Class Accuracy: {mean_class_accuracy:.4f}')
+        print(f'Per-Class Accuracy: {class_accuracy}')
         print("------------------------")
         print(f"Best val Loss is: {self.best_val_loss}")
         graph = ConfusionMatrixDisplay(confusion_matrix=cm_norm, display_labels=labels)

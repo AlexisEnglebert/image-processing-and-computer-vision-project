@@ -30,7 +30,7 @@ class LLNDataset(Dataset):
         self.imgDirectory       = imgDirectory
         self.maskDirectory      = maskDirectory
         self.setName            = setName        
-        self.transform_train    = getTransforms_train(param)
+        self.transform_train    = getTransforms_train_data_augmentation(param)
         self.transform_val_test = getTransforms_val_test(param)
         
         with open("./Dataset/" + self.setName + ".json", 'r') as f:
@@ -82,12 +82,58 @@ class LLNDataset(Dataset):
 #
 # Do not hesitate to consider other useful transforms!
 # -----------------------------------------------------------------------
+
+
 def getTransforms_train(param): 
     imgTransformsList = [alb.Resize(height = int(param["DATASET"]["RESIZE_SHAPE"].split("x")[0]), 
                                     width  = int(param["DATASET"]["RESIZE_SHAPE"].split("x")[1])), 
                          alb.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)), 
                          alb.pytorch.transforms.ToTensorV2(), 
                         ]
+    return alb.Compose(imgTransformsList)
+
+def getTransforms_train_data_augmentation(param): 
+    imgTransformsList = [
+        # Resize first
+        alb.Resize(height = int(param["DATASET"]["RESIZE_SHAPE"].split("x")[0]), 
+                   width  = int(param["DATASET"]["RESIZE_SHAPE"].split("x")[1])),
+        
+        # Geometric augmentations
+        alb.HorizontalFlip(p=0.5),
+        alb.VerticalFlip(p=0.5),
+        alb.ShiftScaleRotate(
+            shift_limit=0.1,      # max shift as fraction of image size
+            scale_limit=0.2,      # max scale change (+/- 20%)
+            rotate_limit=30,      # max rotation in degrees
+            border_mode=cv2.BORDER_CONSTANT,
+            value=0,              # fill value for image
+            mask_value=0,         # fill value for mask (class 0 = unmapped)
+            p=0.5
+        ),
+        
+        # Color augmentations
+        alb.RGBShift(
+            r_shift_limit=20,
+            g_shift_limit=20,
+            b_shift_limit=20,
+            p=0.5
+        ),
+        alb.RandomBrightnessContrast(
+            brightness_limit=0.2,
+            contrast_limit=0.2,
+            p=0.5
+        ),
+        alb.ColorJitter(
+            brightness=0.2,
+            contrast=0.2,
+            saturation=0.2,
+            hue=0.1,
+            p=0.3
+        ),
+        
+        alb.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)), 
+        alb.pytorch.transforms.ToTensorV2(), 
+    ]
     return alb.Compose(imgTransformsList)
 
 def getTransforms_val_test(param): 
