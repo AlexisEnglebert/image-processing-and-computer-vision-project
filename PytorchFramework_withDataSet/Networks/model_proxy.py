@@ -7,6 +7,7 @@ np.random.seed(2885)
 import os
 import copy
 import tqdm
+import json
 
 import torch
 torch.manual_seed(2885)
@@ -16,6 +17,7 @@ import torch.nn as nn
 import torch.optim
 
 from sklearn.metrics import jaccard_score, f1_score, confusion_matrix, ConfusionMatrixDisplay
+from sklearn.cluster import MiniBatchKMeans
 
 # --------------------------------------------------------------------------------
 # CREATE A FOLDER IF IT DOES NOT EXIST
@@ -96,6 +98,92 @@ class Network_Class:
     # ---------------------------------------------------------------------------
     def loadWeights(self): 
         self.model.load_state_dict(torch.load(self.resultsPath + '/_Weights/wghts.pkl', weights_only=True))
+
+    def collect_encoded_features(self, feature_batch_size=None):
+        """
+        Aggregate encoder bottleneck features from every training tile into a single
+        matrix of shape (N, C) where N = N_train * H' * W'.
+        """
+        batch_size = feature_batch_size or self.batchSize
+        feature_loader = DataLoader(
+            self.dataSetTrain, batch_size=batch_size, shuffle=False, num_workers=2
+        )
+        self.model.eval()
+
+        all_features = []
+        h_prime, w_prime, channels = None, None, None
+
+        with torch.no_grad():
+            for (images, _, _, _) in tqdm.tqdm(feature_loader, desc="Collecting encoded features"):
+                images = images.to(self.device)
+                _, encoded = self.model(images, return_features=True)
+                batch_count, channels, h_prime, w_prime = encoded.shape
+                flattened = encoded.permute(0, 2, 3, 1).reshape(-1, channels).cpu()
+                all_features.append(flattened)
+
+        if not all_features:
+            return np.empty((0, 0)), {"N": 0, "C": 0, "H_prime": 0, "W_prime": 0, "N_train_tiles": 0}
+
+        features = torch.cat(all_features, dim=0).numpy()
+        feature_info = {
+            "N": int(features.shape[0]),
+            "C": int(channels),
+            "H_prime": int(h_prime),
+            "W_prime": int(w_prime),
+            "N_train_tiles": len(feature_loader.dataset),
+        }
+        print(
+            f"Encoded feature matrix shape: {features.shape} "
+            f"(N = {feature_info['N_train_tiles']} x {feature_info['H_prime']} x {feature_info['W_prime']}, "
+            f"C = {feature_info['C']})"
+        )
+        return features, feature_info
+
+    def cluster_training_features(
+        self,
+        num_clusters=10,
+        minibatch_size=4096,
+        random_state=0,
+        save_features=False,
+    ):
+        """
+        Run clustering (MiniBatchKMeans) on the aggregated encoder features.
+        """
+        features, feature_info = self.collect_encoded_features()
+        if features.shape[0] == 0:
+            raise RuntimeError("No encoded features collected from the training set.")
+
+        clustering = MiniBatchKMeans(
+            n_clusters=num_clusters,
+            batch_size=minibatch_size,
+            random_state=random_state,
+            n_init="auto",
+        )
+        cluster_labels = clustering.fit_predict(features)
+
+        cluster_dir = os.path.join(self.resultsPath, "_Clusters")
+        createFolder(cluster_dir)
+
+        np.save(os.path.join(cluster_dir, "cluster_labels.npy"), cluster_labels)
+        np.save(os.path.join(cluster_dir, "cluster_centers.npy"), clustering.cluster_centers_)
+
+        if save_features:
+            np.save(os.path.join(cluster_dir, "encoded_features.npy"), features)
+
+        meta = {
+            "num_clusters": num_clusters,
+            "minibatch_size": minibatch_size,
+            "random_state": random_state,
+            "feature_shape": feature_info,
+        }
+        with open(os.path.join(cluster_dir, "metadata.json"), "w") as f:
+            json.dump(meta, f, indent=2)
+
+        print(
+            f"Finished clustering {feature_info['N']} feature vectors into {num_clusters} clusters. "
+            f"Artifacts saved to {cluster_dir}."
+        )
+        return cluster_labels, clustering
 
     # -----------------------------------
     # TRAINING LOOP (dummy implementation)
