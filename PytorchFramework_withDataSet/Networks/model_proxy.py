@@ -114,7 +114,7 @@ class Network_Class:
                 all_features.append(flattened)
 
         if not all_features:
-            return np.empty((0, 0)), {"N": 0, "C": 0, "H_prime": 0, "W_prime": 0, "N_train_tiles": 0}
+            return np.empty((0, 0))
 
         features = torch.cat(all_features, dim=0).numpy()
   
