@@ -1,6 +1,7 @@
 from Dataset.dataLoader import *
 from Dataset.makeGraph import *
 from Networks.Architectures.EncoderDecoderNetworkProxy import *
+from Networks.Architectures.attentionunetProxy import *
 
 import numpy as np
 np.random.seed(2885)
@@ -34,6 +35,27 @@ def apply_mask(x, mask_ratio=0.75):
     x_masked = x.clone()
     # set the masked pixels to 0
     x_masked[mask.expand_as(x)] = 0
+    return x_masked, mask
+
+def apply_mask_patch(x, mask_ratio=0.75, patch_size=8):
+    """
+    Apply patch-based masking for MAE.
+    """
+    B, C, H, W = x.shape
+    
+    # Number of patches
+    num_patches_h = H // patch_size
+    num_patches_w = W // patch_size
+    
+    # Create patch-level mask
+    patch_mask = torch.rand(B, 1, num_patches_h, num_patches_w, device=x.device) < mask_ratio
+    
+    # Upsample to pixel level
+    mask = patch_mask.repeat_interleave(patch_size, dim=2).repeat_interleave(patch_size, dim=3)
+    
+    x_masked = x.clone()
+    x_masked[mask.expand_as(x)] = 0
+    
     return x_masked, mask
 
 ######################################################################################
@@ -72,6 +94,7 @@ class Network_Class:
         # NETWORK ARCHITECTURE INITIALISATION
         # -----------------------------------
         self.model = EncoderDecoderNet(param).to(self.device)
+        #self.model = attention_UNet(param).to(self.device)
         # -------------------
         # TRAINING PARAMETERS
         # -------------------
@@ -123,6 +146,7 @@ class Network_Class:
 
                 # Apply random masking
                 x_masked, mask = apply_mask(images, mask_ratio=0.70)
+                #x_masked, mask = apply_mask_patch(images, mask_ratio=0.75, patch_size=16)
 
                 # zero the parameter gradients
                 self.optimizer.zero_grad()
@@ -156,6 +180,7 @@ class Network_Class:
 
                     # Apply random masking
                     x_masked, mask = apply_mask(images, mask_ratio=0.70)
+                    #x_masked, mask = apply_mask_patch(images, mask_ratio=0.75, patch_size=16)
 
                     outputs = self.model(x_masked)
                     # Compute the loss only on the masked pixels
@@ -167,9 +192,9 @@ class Network_Class:
                 val_loss_history.append(total_val_loss_epoch)
                 print(f"Validation Loss: ", str(total_val_loss_epoch))
 
-                if total_val_loss < self.best_val_loss:
+                if total_val_loss_epoch < self.best_val_loss:
                     self.best_weights = copy.deepcopy(self.model.state_dict())
-                    self.best_val_loss = total_val_loss
+                    self.best_val_loss = total_val_loss_epoch
 
 
         wghtsPath  = self.resultsPath + '/_Weights/'
@@ -209,6 +234,7 @@ class Network_Class:
                 
                 # Apply mask
                 images_masked, mask = apply_mask(images, mask_ratio=0.70)
+                #images_masked, mask = apply_mask_patch(images, mask_ratio=0.75, patch_size=16)
 
                 # Reconstruct
                 output = self.model(images_masked)
