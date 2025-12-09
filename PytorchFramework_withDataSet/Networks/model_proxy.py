@@ -17,7 +17,7 @@ import torch.nn as nn
 import torch.optim
 
 from sklearn.metrics import jaccard_score, f1_score, confusion_matrix, ConfusionMatrixDisplay
-from sklearn.cluster import MiniBatchKMeans
+from sklearn.cluster import KMeans
 
 # --------------------------------------------------------------------------------
 # CREATE A FOLDER IF IT DOES NOT EXIST
@@ -106,10 +106,11 @@ class Network_Class:
         h_prime, w_prime, channels = None, None, None
 
         with torch.no_grad():
-            for (images, _, _, _) in tqdm.tqdm(trainDataLoader, desc="Collecting encoded features"):
+            for (images, _, _, _) in tqdm.tqdm(trainDataLoader):
                 images = images.to(self.device)
                 _, encoded = self.model(images, return_features=True)
                 batch_count, channels, h_prime, w_prime = encoded.shape
+                # ON réordonne pour être comme dans l'énoncé
                 flattened = encoded.permute(0, 2, 3, 1).reshape(-1, channels).cpu()
                 all_features.append(flattened)
 
@@ -120,18 +121,13 @@ class Network_Class:
   
         return features
 
-    def cluster_training_features(self, num_clusters=10, minibatch_size=4096, random_state=0, save_features=False ):
+    def cluster_training_features(self, num_clusters=10, save_features=False ):
     
         features  = self.collect_encoded_features()
         if features.shape[0] == 0:
             raise RuntimeError("No encoded features collected from the training set.")
 
-        clustering = MiniBatchKMeans(
-            n_clusters=num_clusters,
-            batch_size=minibatch_size,
-            random_state=random_state,
-            n_init="auto",
-        )
+        clustering = KMeans(n_clusters=num_clusters, n_init="auto")
         cluster_labels = clustering.fit_predict(features)
 
         cluster_dir = os.path.join(self.resultsPath, "_Clusters")
