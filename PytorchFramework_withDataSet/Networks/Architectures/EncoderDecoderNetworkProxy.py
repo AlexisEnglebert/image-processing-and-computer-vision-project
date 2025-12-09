@@ -88,10 +88,8 @@ class EncoderDecoderNet(nn.Module):
         # Note, for this model only 3 channels are in the final layer representing the value of each pixel
         self.final_block =  nn.Conv2d(self.nb_channel, 3, padding="same", kernel_size=1)
         
-    def forward(self, x):
-
-        skip_connections = [] # On sauvegardes les features pour chaque taille de channels
-        #On descend dans le U (encoder)
+    def encode(self, x):
+        skip_connections = []
         x = self.encoder1(x)
         skip_connections.append(x)
         x = self.pool(x)
@@ -101,12 +99,11 @@ class EncoderDecoderNet(nn.Module):
         x = self.encoder3(x)
         skip_connections.append(x)
         x = self.pool(x)
+        bottleneck_features = self.bottleneck(x)
+        return bottleneck_features, skip_connections
 
-        # On est dans le bottleneck (bas du U)
-        x = self.bottleneck(x)
-
-        # On monte dans le U (decoder)
-        x = self.up_sample1(x)
+    def decode(self, bottleneck_features, skip_connections):
+        x = self.up_sample1(bottleneck_features)
         x = torch.cat([x, skip_connections[-1]], dim=1)
         x = self.decode1(x)
 
@@ -118,7 +115,12 @@ class EncoderDecoderNet(nn.Module):
         x = torch.cat([x, skip_connections[-3]], dim=1)
         x = self.decode3(x)
 
-        # Maintenant on réduit à 3 channels
         x = self.final_block(x)
+        return x
 
+    def forward(self, x, return_features=False):
+        bottleneck_features, skip_connections = self.encode(x)
+        x = self.decode(bottleneck_features, skip_connections)
+        if return_features:
+            return x, bottleneck_features
         return x
