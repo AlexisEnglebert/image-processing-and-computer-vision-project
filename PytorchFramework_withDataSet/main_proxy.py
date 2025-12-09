@@ -76,11 +76,6 @@ def main(parser):
             save_features=save_features,
         )
         """
-
-        #maps, gt = myNetwork.cluster_test_features_and_reconstruct(clustering)
-
-        #myNetwork.visualize_cluster_map(maps[0])
-        #myNetwork.visualize_cluster_map(gt[0])
     
     
 

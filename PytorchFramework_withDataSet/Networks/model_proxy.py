@@ -131,7 +131,7 @@ class Network_Class:
         val_loader=self.valDataLoader,
         test_loader=self.testDataLoader,
         device=self.device,
-        num_clusters=10
+        num_clusters=15
         )
     
     def encode_images(self, images):
