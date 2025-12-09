@@ -50,10 +50,11 @@ def main(parser):
     #showDataset(myNetwork.dataSetTrain, param)
 
     print(colored('Start to train the network', 'red'))
-    myNetwork.train()
+    #myNetwork.train()
     print(colored('The network is trained', 'red'))
     
     myNetwork.loadWeights()
+    #myNetwork.evaluate()
 
     cluster_cfg = param.get("CLUSTERING", {})
     run_clustering = parser.cluster or cluster_cfg.get("RUN", False)
@@ -65,13 +66,16 @@ def main(parser):
     random_state = cluster_cfg.get("RANDOM_STATE", 0)
 
     if run_clustering:
-        myNetwork.cluster_training_features(
+        myNetwork.run_full_ssl_segmentation_()
+
+        """
+        cluster_labels, clustering = myNetwork.cluster_training_features(
             num_clusters=cluster_count,
             minibatch_size=cluster_minibatch,
             random_state=random_state,
             save_features=save_features,
         )
-    myNetwork.evaluate()
+        """
     
     
 
