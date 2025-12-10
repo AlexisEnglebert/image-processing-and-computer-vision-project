@@ -157,7 +157,8 @@ class Network_Class:
         num_clusters=cluster_count, 
         batch_size = cluster_minibatch,
         rand_state = random_state,
-        save_features = save_features
+        save_features = save_features,
+        resultsPath=self.resultsPath
         )
 
     # -----------------------------------

@@ -5,7 +5,6 @@ import torch
 from tqdm import tqdm
 from sklearn.cluster import MiniBatchKMeans
 import matplotlib.pyplot as plt
-import Networks.model_proxy
 
 # Extract the row/col index from "tile_XX_YY.png"
 def parse_tile_position(tile_name):
@@ -90,14 +89,14 @@ def create_stitched_map(cluster_labels, tile_positions, Hprime, Wprime, tile_siz
 
 
 # Visualization
-def visualize_map(cluster_map, title="Cluster map", save_features=False):
+def visualize_map(cluster_map, title="Cluster map", save_features=False, resultsPath=None):
     plt.figure(figsize=(10, 10))
     plt.imshow(cluster_map, cmap="tab20")
     plt.title(title)
     plt.axis("off")
     plt.show()
     if save_features:
-        plot_path = os.path.join(Networks.model_proxy.Network_Class.resultsPath, 'pseudo_segmentation_mask_of_entire_map.png')
+        plot_path = os.path.join(resultsPath, 'pseudo_segmentation_mask_of_entire_map.png')
         plt.savefig(plot_path)
 
 # Combine train + val + test into a single global map
@@ -108,7 +107,7 @@ def combine_three_maps(stitched_train, stitched_val, stitched_test):
 
 
 # Main pipeline
-def run_full_ssl_segmentation(model, train_loader, val_loader, test_loader, device, num_clusters=15, batch_size=1, rand_state=0, save_features=False):
+def run_full_ssl_segmentation(model, train_loader, val_loader, test_loader, device, num_clusters=15, batch_size=1, rand_state=0, save_features=False, resultsPath=None):
 
     print("ENCODE TRAIN")
     train_features, train_pos, Hp, Wp = encode_dataset(model, train_loader, device)
@@ -140,6 +139,6 @@ def run_full_ssl_segmentation(model, train_loader, val_loader, test_loader, devi
     # Combine map
     print("TRAIN + VAL + TEST ")
     combined_map = combine_three_maps(stitched_train, stitched_val, stitched_test)
-    visualize_map(combined_map, "FULL DATASET: train + val + test segmentation", save_features=save_features)
+    visualize_map(combined_map, "FULL DATASET: train + val + test segmentation", save_features=save_features, resultsPath=resultsPath)
 
     return stitched_train, stitched_val, stitched_test, combined_map, kmeans
