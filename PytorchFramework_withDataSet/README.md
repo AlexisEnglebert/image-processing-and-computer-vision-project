@@ -25,12 +25,27 @@ python main_proxy.py -exp ProxyParameters
 | Argument | Description |
 |----------|-------------|
 | `-exp <ExperimentName>` | Specifies the configuration file to use. Defaults to `DefaultExp`.|
+| `--cluster` | Run clustering analysis on encoder features after training. |
+| `--num_clusters <int>` | Number of clusters to learn (optional). |
+| `--cluster_minibatch <int>` | Mini-batch size for clustering (optional). |
+| `--save_features` | Persist the full encoded feature matrix to disk. |
+| `--no_train` | Skip training and load existing weights. |
 
 ### Examples
 
 Train a new model :
 ```bash
 python main_proxy.py -exp ProxyParameters
+```
+
+Train a new model and run clustering analysis:
+```bash
+python main_proxy.py -exp ProxyParameters --cluster
+```
+
+Run clustering analysis on an already trained model (skip training):
+```bash
+python main_proxy.py -exp ProxyParameters --cluster --no_train
 ```
 
 ## Clustering analysis
