@@ -29,8 +29,8 @@ parser.add_argument('--save_features', action='store_true', help='Persist the fu
 # MAIN PROCEDURE 
 # launches an experiment whose parameters are described in a yaml file  
 # 
-# Example of use in the terminal: python main.py -exp DefaultExp
-# with 'DefaultExp' beeing the name of the yaml file (in the Todo_list folder) with 
+# Example of use in the terminal: python main_proxy.py -exp ProxyParameters
+# with 'ProxyParameters' beeing the name of the yaml file (in the Todo_list folder) with 
 # the wanted configuration 
 # 
 ######################################################################################
@@ -48,11 +48,14 @@ def main(parser):
     myNetwork  = Network_Class(param, imgDirectory, maskDirectory, resultsPath)
 
     print(colored('Start to train the network', 'red'))
+
     # Uncomment this if you want to train !
     #myNetwork.train()
+
     print(colored('The network is trained', 'red'))
     
     myNetwork.loadWeights()
+    
     # Uncomment this if you want to evaluate the model !
     #myNetwork.evaluate()
 
