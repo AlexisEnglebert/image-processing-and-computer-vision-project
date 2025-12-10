@@ -49,14 +49,14 @@ def main(parser):
 
     print(colored('Start to train the network', 'red'))
 
-    # Uncomment this if you want to train !
+    # Uncomment this if you want to train !!!!!
     #myNetwork.train()
 
     print(colored('The network is trained', 'red'))
     
     myNetwork.loadWeights()
-    
-    # Uncomment this if you want to evaluate the model !
+
+    # Uncomment this if you want to evaluate the model !!!!!
     #myNetwork.evaluate()
 
     cluster_cfg = param.get("CLUSTERING", {})
