@@ -34,24 +34,23 @@ def createFolder(desiredPath):
         os.makedirs(desiredPath)
 
 # Function that randomly selects the patches to be masked
-def apply_mask(images, mask_ratio=0.7, patch_size=8, replace_with_noise=True):
+def apply_mask(images, mask_ratio=0.75, patch_size=8, replace_with_noise=True):
     """
-    Block (patch) masking: split images into non-overlapping patches of patch_size and randomly mask patches.
-    images: (B,C,H,W), H and W must be divisible by patch_size
-    returns: images_masked, mask_bool
-    mask_bool is True for masked pixels
+    Split images into patches of patch_size and randomly mask patches.
     """
     B, C, H, W = np.shape(images)
-    # verify the height and width of image are multiples of the patch size
-    assert H % patch_size == 0 and W % patch_size == 0
     # coordinates of each patch
-    gh, gw = H // patch_size, W // patch_size
+    gh = H // patch_size
+    gw = W // patch_size
     # create mask for patches
     patch_mask = torch.rand(B, gh, gw, device=images.device) < mask_ratio
     # expand to pixel mask
-    patch_mask = patch_mask.unsqueeze(-1).unsqueeze(-1)  # B,gh,gw,1,1
-    patch_mask = patch_mask.expand(-1, -1, -1, patch_size, patch_size)  # B,gh,gw,ps,ps
-    mask_bool = patch_mask.reshape(B, 1, H, W)  # B,1,H,W
+    # B,gh,gw,1,1
+    patch_mask = patch_mask.unsqueeze(-1).unsqueeze(-1)
+    # B,gh,gw,ps,ps
+    patch_mask = patch_mask.expand(-1, -1, -1, patch_size, patch_size)
+    # B,1,H,W
+    mask_bool = patch_mask.reshape(B, 1, H, W)
 
     images_masked = images.clone()
     # Mask using noise
@@ -125,7 +124,7 @@ class Network_Class:
         # -------------------
         # TRAINING PARAMETERS
         # -------------------
-        # Use MSE loss for critetion
+
         self.criterion = nn.MSELoss(reduction="mean")
         self.optimizer = torch.optim.AdamW(self.model.parameters(), lr=self.lr, weight_decay=self.weight_decay)
         self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, "min", patience=5, factor=0.5)
@@ -145,181 +144,21 @@ class Network_Class:
     # LOAD PRETRAINED WEIGHTS (to run evaluation without retraining the model...)
     # ---------------------------------------------------------------------------
     def loadWeights(self): 
-        self.model.load_state_dict(torch.load(self.resultsPath + '/_Weights/wghts.pkl', weights_only=True))
+        self.model.load_state_dict(torch.load(self.resultsPath + '/_Weights/wghts_with_patch.pkl', weights_only=True))
     
-    def run_full_ssl_segmentation_(self):
+    # Function running the full self-supervised segmentation
+    def run_full_ssl_segmentation_(self, cluster_count, cluster_minibatch, random_state, save_features):
         run_full_ssl_segmentation(
         model=self.model,
         train_loader=self.trainDataLoader,
         val_loader=self.valDataLoader,
         test_loader=self.testDataLoader,
         device=self.device,
-        num_clusters=15
+        num_clusters=cluster_count, 
+        batch_size = cluster_minibatch,
+        rand_state = random_state,
+        save_features = save_features
         )
-    
-    def encode_images(self, images):
-        """Return the encoder feature maps (not flattened)."""
-        with torch.no_grad():
-            images = images.to(self.device)
-            _, encoded = self.model(images, return_features=True)
-        return encoded   # shape (B, C, H', W')
-
-    import re
-
-    def stitch_full_map(self, cluster_maps, tile_names, tile_H, tile_W):
-        """
-        Rebuild the full map from individual clustered tiles.
-
-        cluster_maps: list or array of (H, W) cluster predictions per tile
-        tile_names: list of filenames like "tile_03_07.png"
-        tile_H, tile_W: size of each tile in pixels
-
-        Returns:
-            full_map: (full_H, full_W) array with cluster labels
-        """
-
-        # Extract row/col indices from tile names
-        coords = []
-        for name in tile_names:
-            match = re.findall(r"tile_(\d+)_(\d+)", name)
-            if not match:
-                raise RuntimeError(f"Cannot extract row/col from file name: {name}")
-            row, col = map(int, match[0])
-            coords.append((row, col))
-
-        # Get grid size
-        max_row = max(r for r, _ in coords)
-        max_col = max(c for _, c in coords)
-        grid_rows = max_row + 1
-        grid_cols = max_col + 1
-
-        # Allocate the final giant map
-        full_H = grid_rows * tile_H
-        full_W = grid_cols * tile_W
-        full_map = np.zeros((full_H, full_W), dtype=np.int32)
-
-        # Fill the giant map
-        for (r, c), tile in zip(coords, cluster_maps):
-            y0 = r * tile_H
-            y1 = y0 + tile_H
-            x0 = c * tile_W
-            x1 = x0 + tile_W
-            full_map[y0:y1, x0:x1] = tile
-
-        return full_map
-
-
-    def cluster_test_features_and_reconstruct(self, clustering, save_output=True):
-        """
-        Runs the trained KMeans clustering on the encoded pixels of the test images.
-        Reconstructs the pseudo-segmentation maps by:
-        1. Encoding test images
-        2. Predicting cluster labels per encoded pixel
-        3. Reshaping (H', W')
-        4. Upsampling back to (H, W)
-        5. Stitching into a full scene
-        """
-
-        self.model.eval()
-
-        cluster_dir = os.path.join(self.resultsPath, "_Clusters")
-        createFolder(cluster_dir)
-
-        stitched_maps = []     # one map per test image
-        stitched_gt = []       # store ground truth masks
-
-        with torch.no_grad():
-            for (images, _, _, masks) in tqdm.tqdm(self.testDataLoader, desc="Clustering test data"):
-                B, C, H, W = images.shape
-
-                encoded = self.encode_images(images)
-                _, Cenc, Hp, Wp = encoded.shape
-
-                # Flatten encoded features
-                flat = encoded.permute(0,2,3,1).reshape(-1, Cenc).cpu().numpy()
-
-                # Predict clusters
-                flat_labels = clustering.predict(flat)
-
-                # Reshape back to (B, Hp, Wp)
-                cluster_maps = flat_labels.reshape(B, Hp, Wp)
-
-                # Upscale from (Hp,Wp) → (H, W)
-                cluster_maps_up = torch.nn.functional.interpolate(
-                    torch.tensor(cluster_maps).unsqueeze(1).float(),
-                    size=(H, W),
-                    mode="nearest"
-                ).squeeze(1).numpy()
-
-                # Store maps
-                stitched_maps.extend(cluster_maps_up)
-                stitched_gt.extend(masks.numpy())
-
-        stitched_maps = np.array(stitched_maps)
-        stitched_gt = np.array(stitched_gt)
-
-        # Save output if needed
-        if save_output:
-            np.save(os.path.join(cluster_dir, "test_cluster_maps.npy"), stitched_maps)
-            np.save(os.path.join(cluster_dir, "test_ground_truth.npy"), stitched_gt)
-            print(f"Saved clustered maps to {cluster_dir}")
-
-        return stitched_maps, stitched_gt
-
-    def visualize_cluster_map(self, cluster_map, title="Cluster Map"):
-        plt.figure(figsize=(6,6))
-        plt.imshow(cluster_map, cmap="tab20")
-        plt.title(title)
-        plt.axis("off")
-        plt.show()
-
-    def collect_encoded_features(self):
-        self.model.eval()
-
-        all_features = []
-        h_prime, w_prime, channels = None, None, None
-
-        with torch.no_grad():
-            for (images, _, _, _) in tqdm.tqdm(trainDataLoader):
-                images = images.to(self.device)
-                _, encoded = self.model(images, return_features=True)
-                batch_count, channels, h_prime, w_prime = encoded.shape
-                # ON réordonne pour être comme dans l'énoncé
-                flattened = encoded.permute(0, 2, 3, 1).reshape(-1, channels).cpu()
-                all_features.append(flattened)
-
-        if not all_features:
-            return np.empty((0, 0))
-
-        features = torch.cat(all_features, dim=0).numpy()
-  
-        return features
-
-    def cluster_training_features(self, num_clusters=10, save_features=False ):
-    
-        features  = self.collect_encoded_features()
-        if features.shape[0] == 0:
-            raise RuntimeError("No encoded features collected from the training set.")
-        
-        #pca = PCA(n_components=50)
-        #features = pca.fit_transform(features)
-
-        clustering = KMeans(n_clusters=num_clusters, n_init="auto")
-        cluster_labels = clustering.fit_predict(features)
-
-        cluster_dir = os.path.join(self.resultsPath, "_Clusters")
-        createFolder(cluster_dir)
-
-        np.save(os.path.join(cluster_dir, "cluster_labels.npy"), cluster_labels)
-        np.save(os.path.join(cluster_dir, "cluster_centers.npy"), clustering.cluster_centers_)
-
-        if save_features:
-            np.save(os.path.join(cluster_dir, "encoded_features.npy"), features)
-
-        print( f"Artifacts saved to {cluster_dir}.")
-        unique, counts = np.unique(cluster_labels, return_counts=True)
-        print(dict(zip(unique, counts)))
-        return cluster_labels, clustering
 
     # -----------------------------------
     # TRAINING LOOP (dummy implementation)

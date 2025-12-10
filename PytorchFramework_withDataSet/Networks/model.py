@@ -3,8 +3,6 @@ from Dataset.makeGraph import *
 from Networks.Architectures.basicNetwork import *
 from Networks.Architectures.EncoderDecoderNetwork import *
 from Networks.Architectures.attentionunet import *
-from Networks.Architectures.UNet import *
-from Networks.Architectures.testNet import *
 
 import numpy as np
 np.random.seed(2885)

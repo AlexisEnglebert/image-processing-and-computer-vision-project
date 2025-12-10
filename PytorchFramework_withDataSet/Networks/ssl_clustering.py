@@ -5,21 +5,16 @@ import torch
 from tqdm import tqdm
 from sklearn.cluster import MiniBatchKMeans
 import matplotlib.pyplot as plt
+import Networks.model_proxy
 
-
-# ------------------------------------------------------------
-# 1. Extract the row/col index from "tile_XX_YY.png"
-# ------------------------------------------------------------
+# Extract the row/col index from "tile_XX_YY.png"
 def parse_tile_position(tile_name):
-    # example: "tile_03_14.png"
     base = os.path.splitext(tile_name)[0]
     _, r, c = base.split("_")
     return int(r), int(c)
 
 
-# ------------------------------------------------------------
-# 2. Encode an entire dataset (train/test)
-# ------------------------------------------------------------
+# Encode an entire dataset
 def encode_dataset(model, dataloader, device):
     model.eval()
     all_features = []
@@ -46,27 +41,21 @@ def encode_dataset(model, dataloader, device):
     return features, tile_positions, Hprime, Wprime
 
 
-# ------------------------------------------------------------
-# 3. Perform clustering
-# ------------------------------------------------------------
-def cluster_features(features, num_clusters=10):
+# Perform clustering
+def cluster_features(features, num_clusters=15, batch_size=1, rand_state=0):
     print("\nClustering features...")
     kmeans = MiniBatchKMeans(
         n_clusters=num_clusters,
-        batch_size=4096,
-        random_state=0,
+        batch_size=batch_size,
+        random_state=rand_state,
         n_init="auto"
     )
     labels = kmeans.fit_predict(features)
     return labels, kmeans
 
 
-# ------------------------------------------------------------
-# 4. Build a stitched pseudo-segmentation mask
-# ------------------------------------------------------------
+# Build a stitched pseudo-segmentation mask
 def create_stitched_map(cluster_labels, tile_positions, Hprime, Wprime, tile_size=64):
-    print("\nBuilding stitched segmentation map...")
-
     num_tiles = len(tile_positions)
     expected_points = num_tiles * Hprime * Wprime
     assert len(cluster_labels) == expected_points
@@ -100,80 +89,57 @@ def create_stitched_map(cluster_labels, tile_positions, Hprime, Wprime, tile_siz
     return stitched
 
 
-# ------------------------------------------------------------
-# 5. Visualization
-# ------------------------------------------------------------
-def visualize_map(cluster_map, title="Cluster map"):
+# Visualization
+def visualize_map(cluster_map, title="Cluster map", save_features=False):
     plt.figure(figsize=(10, 10))
     plt.imshow(cluster_map, cmap="tab20")
     plt.title(title)
     plt.axis("off")
     plt.show()
+    if save_features:
+        plot_path = os.path.join(Networks.model_proxy.Network_Class.resultsPath, 'pseudo_segmentation_mask_of_entire_map.png')
+        plt.savefig(plot_path)
 
-# ------------------------------------------------------------
-# 6. Combine TRAIN + TEST stitched maps
-# ------------------------------------------------------------
-def combine_train_test_maps(stitched_train, stitched_test):
-    # Both maps have the same size — combine them into one
-    combined = np.where(stitched_train != 0, stitched_train, stitched_test)
-    return combined
-
-# ------------------------------------------------------------
-# Combine TRAIN + VAL + TEST into a single global map
-# ------------------------------------------------------------
+# Combine train + val + test into a single global map
 def combine_three_maps(stitched_train, stitched_val, stitched_test):
-    # Priority: train > val > test
     combined = np.where(stitched_train != 0, stitched_train,
                         np.where(stitched_val != 0, stitched_val, stitched_test))
     return combined
 
 
-# ------------------------------------------------------------
-# 7. MAIN PIPELINE
-# ------------------------------------------------------------
-def run_full_ssl_segmentation(model, train_loader, val_loader, test_loader, device, num_clusters=10):
+# Main pipeline
+def run_full_ssl_segmentation(model, train_loader, val_loader, test_loader, device, num_clusters=15, batch_size=1, rand_state=0, save_features=False):
 
-    print("==== ENCODE TRAIN ====")
+    print("ENCODE TRAIN")
     train_features, train_pos, Hp, Wp = encode_dataset(model, train_loader, device)
 
-    print("==== CLUSTER TRAIN ====")
-    train_labels, kmeans = cluster_features(train_features, num_clusters=num_clusters)
+    print("CLUSTER TRAIN")
+    train_labels, kmeans = cluster_features(train_features, num_clusters=num_clusters, batch_size=batch_size, rand_state=rand_state)
 
-    print("==== STITCH TRAIN ====")
+    print("STITCH TRAIN")
     stitched_train = create_stitched_map(train_labels, train_pos, Hp, Wp)
-    #visualize_map(stitched_train, "TRAIN: pseudo-segmentation")
-
-    # -------------------------
-    # VALIDATION
-    # -------------------------
-    print("==== ENCODE VAL ====")
+    
+    print("ENCODE VAL")
     val_features, val_pos, _, _ = encode_dataset(model, val_loader, device)
 
-    print("==== PREDICT VAL CLUSTERS ====")
+    print("PREDICT VAL CLUSTERS")
     val_labels = kmeans.predict(val_features)
 
-    print("==== STITCH VAL ====")
+    print("STITCH VAL")
     stitched_val = create_stitched_map(val_labels, val_pos, Hp, Wp)
-    #visualize_map(stitched_val, "VAL: pseudo-segmentation")
 
-    # -------------------------
-    # TEST
-    # -------------------------
-    print("==== ENCODE TEST ====")
+    print("ENCODE TEST")
     test_features, test_pos, _, _ = encode_dataset(model, test_loader, device)
 
-    print("==== PREDICT TEST CLUSTERS ====")
+    print("PREDICT TEST CLUSTERS")
     test_labels = kmeans.predict(test_features)
 
-    print("==== STITCH TEST ====")
+    print("STITCH TEST")
     stitched_test = create_stitched_map(test_labels, test_pos, Hp, Wp)
-    #visualize_map(stitched_test, "TEST: pseudo-segmentation")
 
-    # -------------------------
-    # COMBINED MAP
-    # -------------------------
-    print("==== MERGE TRAIN + VAL + TEST ====")
+    # Combine map
+    print("TRAIN + VAL + TEST ")
     combined_map = combine_three_maps(stitched_train, stitched_val, stitched_test)
-    visualize_map(combined_map, "FULL DATASET: train + val + test segmentation")
+    visualize_map(combined_map, "FULL DATASET: train + val + test segmentation", save_features=save_features)
 
     return stitched_train, stitched_val, stitched_test, combined_map, kmeans
