@@ -10,7 +10,7 @@ This project implements a pipeline for training a U-Net based model using Masked
 
 ## Running the proxy task (MAE)
 
-The `main_proxy.py` script handles the training of the Masked Autoencoder and the subsequent clustering analysis.
+The `main_proxy.py` script handles the training of the Masked Autoencoder.
 
 ### Basic usage
 
@@ -25,19 +25,12 @@ python main_proxy.py -exp ProxyParameters
 | Argument | Description |
 |----------|-------------|
 | `-exp <ExperimentName>` | Specifies the configuration file to use. Defaults to `DefaultExp`.|
-| `--cluster` | Runs the clustering analysis script (`clustering_analysis.py`) after training or loading the model. |
-| `--no_train` | Skips the training phase and loads pre-trained weights. Useful for running analysis on an existing model. |
 
 ### Examples
 
-Train a new model and run clustering analysis :
+Train a new model :
 ```bash
-python main_proxy.py -exp ProxyParameters --cluster
-```
-
-Run clustering analysis on an already trained model (skip training) :
-```bash
-python main_proxy.py -exp ProxyParameters --cluster --no_train
+python main_proxy.py -exp ProxyParameters
 ```
 
 ## Clustering analysis

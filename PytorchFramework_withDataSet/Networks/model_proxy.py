@@ -2,7 +2,6 @@ from Dataset.dataLoader import *
 from Dataset.makeGraph import *
 from Networks.Architectures.EncoderDecoderNetworkProxy import *
 from Networks.Architectures.attentionunetProxy import *
-from Networks.ssl_clustering import run_full_ssl_segmentation
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -146,21 +145,6 @@ class Network_Class:
     def loadWeights(self): 
         self.model.load_state_dict(torch.load(self.resultsPath + '/_Weights/wghts_with_patch.pkl', weights_only=True))
     
-    # Function running the full self-supervised segmentation
-    def run_full_ssl_segmentation_(self, cluster_count, cluster_minibatch, random_state, save_features):
-        run_full_ssl_segmentation(
-        model=self.model,
-        train_loader=self.trainDataLoader,
-        val_loader=self.valDataLoader,
-        test_loader=self.testDataLoader,
-        device=self.device,
-        num_clusters=cluster_count, 
-        batch_size = cluster_minibatch,
-        rand_state = random_state,
-        save_features = save_features,
-        resultsPath=self.resultsPath
-        )
-
     # -----------------------------------
     # TRAINING LOOP (dummy implementation)
     # -----------------------------------
